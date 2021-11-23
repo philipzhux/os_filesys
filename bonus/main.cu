@@ -1,10 +1,4 @@
 ﻿#include "file_system.h"
-#include <cuda.h>
-#include <cuda_runtime.h>
-#include <device_launch_parameters.h>
-#include <inttypes.h>
-#include <stdio.h>
-#include <stdlib.h>
 
 #define DATAFILE "./data.bin"
 #define OUTFILE "./snapshot.bin"

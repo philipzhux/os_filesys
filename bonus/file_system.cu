@@ -1,30 +1,5 @@
 ﻿#include "file_system.h"
-#include <cuda.h>
-#include <cuda_runtime.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <thrust/sort.h>
-#include <thrust/execution_policy.h>
-#define REAL_SOTRAGE_BLOCKS 32768
-#define NAME(fcb_base,fd) (fcb_base+fd*32)
-#define SET_BLOCK_OFFSET(fcb_base,fd,pos) fcb_base[21+32*fd]=((pos&0x0000ff00)>>8); fcb_base[22+32*fd]=(pos&0x000000ff)
-#define GET_BLOCK_OFFSET(fcb_base,fd) ((fcb_base[21+32*fd]<<8)|fcb_base[22+32*fd])
 
-#define SET_CTIME(fcb_base,fd,time) fcb_base[23+32*fd]=((time&0x0000ff00)>>8);\
-fcb_base[24+32*fd]=(time&0x000000ff)
-#define GET_CTIME(fcb_base,fd) ((fcb_base[23+32*fd]<<8)|fcb_base[24+32*fd])
-
-#define SET_MTIME(fcb_base,fd,time) fcb_base[25+32*fd]=((time&0x0000ff00)>>8);\
-fcb_base[26+32*fd]=(time&0x000000ff)
-#define GET_MTIME(fcb_base,fd) ((fcb_base[25+32*fd]<<8)|fcb_base[26+32*fd])
-#define SET_SIZE(fcb_base,fd,size) fcb_base[27+32*fd]=((size&0x0000ff00)>>8);fcb_base[28+32*fd]=(size&0x000000ff)
-#define GET_SIZE(fcb_base,fd) ((fcb_base[27+32*fd]<<8)|fcb_base[28+32*fd])
-#define SET_DSIZE(fcb_base,fd,size) fcb_base[29+32*fd]=((size&0x0000ff00)>>8);fcb_base[30+32*fd]=(size&0x000000ff)
-#define GET_DSIZE(fcb_base,fd) ((fcb_base[29+32*fd]<<8)|fcb_base[30+32*fd])
-#define IS_DIR(fcb_base,fd) fcb_base[31+32*fd]
-
-__device__ __managed__ u32 gtime = 0;
-__device__ __managed__ u32 curr_dir_fd = 0;
 
 __device__ void fs_init(FileSystem *fs, uchar *volume, int SUPERBLOCK_SIZE,
 							int FCB_SIZE, int FCB_ENTRIES, int VOLUME_SIZE,
@@ -49,10 +24,10 @@ __device__ void fs_init(FileSystem *fs, uchar *volume, int SUPERBLOCK_SIZE,
   // init FCBs
   uchar* fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
   for(u32 i=0; i<1024; i++) {
-    SET_NAME(fcb_base,fd,"");
-    SET_SIZE(fcb_base,fd,0);
-    SET_DSIZE(fcb_base,fd,0);
-    IS_DIR(fcb_base,fd) = 0
+    NAME(fcb_base,i)[0] = '\0';
+    SET_SIZE(fcb_base,i,0);
+    SET_DSIZE(fcb_base,i,0);
+    IS_DIR(fcb_base,i) = 0;
   }
   // init root
   init_root(fs);
@@ -120,97 +95,126 @@ __device__ void fs_gsys(FileSystem *fs, int op)
 	/* Implement LS_D and LS_S operation here */
   uchar* fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
   u32 count = 0;
-  char name[1024][20];
-  char is_dir[1024];
-  int ctime[1024];
-  ctime_new[count] = GET_CTIME(fcb_base,i);
-  int mtime[1024];
-  int size[1024];
-  int index[1024];
+  // char* is_dir = new char[50];
+  u16* ctime = new u16[50];
+  u16* ctime_new = new u16[50];
+  u16* mtime = new u16[50];
+  u16* size = new u16[50];
+  // int* size = new int[50];
+  u16* index = new u16[50];
+  u16* fds = new u16[50];
+  // char** name = new char*[50];
   u32 dir_block_offset = GET_BLOCK_OFFSET(fcb_base,curr_dir_fd);
-  u16* fds_ptr = (u16*)(volume+(fs->FILE_BASE_ADDRESS+dir_block_offset*fs->STORAGE_BLOCK_SIZE));
+  u16* fds_ptr = (u16*)(fs->volume+(fs->FILE_BASE_ADDRESS+dir_block_offset*fs->STORAGE_BLOCK_SIZE));
   fds_ptr++; //avoid intervening of the parent node
   while((*fds_ptr)!=1024){
-    my_strcpy(name[count],(char*)NAME(fcb_base,(*fds_ptr)));
-    ctime[count] = GET_CTIME(fcb_base,(*fds_ptr)); //reversed order with size
-    mtime[count] = GET_MTIME(fcb_base,(*fds_ptr));
-    size[count] = GET_SIZE(fcb_base,(*fds_ptr));
-    if(IS_DIR(fcb_base,(*fds_ptr))) size[count] = GET_DSIZE(fcb_base,(*fds_ptr));
+    u32 rfd = *fds_ptr;
+    // name[count]=(char*)NAME(fcb_base,rfd);
+    ctime[count] = GET_CTIME(fcb_base,rfd);
+    ctime_new[count] = GET_CTIME(fcb_base,rfd);
+    mtime[count] = GET_MTIME(fcb_base,rfd);
+    size[count] = GET_SIZE(fcb_base,rfd);
+    //is_dir[count] = IS_DIR(fcb_base,rfd);
+    if(IS_DIR(fcb_base,rfd)) size[count] = GET_DSIZE(fcb_base,rfd);
     index[count] = count;
+    fds[count] = rfd;
     count++;
     fds_ptr++;
   }
   
 	switch(op){
     case LS_D:
-    thrust::sort_by_key(thrust::device, mtime, mtime + count, index, thrust::greater<int>());
-    //modified time descending
-    for(int i=0;i<count;i++){
-      if(is_dir[index[i]]) {
-        printf("%s\t%s\n",name[index[i]],"d");
+    {
+      printf("===sort by modified time===\n");
+      thrust::sort_by_key(thrust::device, mtime, mtime + count, index, thrust::greater<u16>());
+      //modified time descending
+      for(int i=0;i<count;i++){
+        if(IS_DIR(fcb_base,fds[index[i]])) {
+          printf("%s\t%s\n",NAME(fcb_base,fds[index[i]]),"d");
+        }
+        else {
+          printf("%s\n",NAME(fcb_base,fds[index[i]]));
+        }
       }
-      else {
-        printf("%s\n",name[index[i]]);
-      }
+  
+      break;
     }
-
-    break;
-
     case LS_S:
-    printf("===sort by file size===\n");
-    thrust::stable_sort_by_key(thrust::device, ctime, ctime + count, index);
-    thrust::stable_sort_by_key(thrust::device, ctime_new, ctime_new + count, size);
-    //create time accending
-    thrust::stable_sort_by_key(thrust::device, size, size + count, index, thrust::greater<int>());
-    //size descending
-    for(int i=0;i<count;i++) {
-      if(is_dir[index[i]]) {
-        printf("%s\t%sB\t%s\n",name[index[i]],size[i],"d");
+    {
+      printf("===sort by file size===\n");
+      thrust::stable_sort_by_key(thrust::device, ctime, ctime + count, index);
+      thrust::stable_sort_by_key(thrust::device, ctime_new, ctime_new + count, size);
+      //create time accending
+      thrust::stable_sort_by_key(thrust::device, size, size + count, index, thrust::greater<u16>());
+      //size descending
+      for(int i=0;i<count;i++) {
+        if(IS_DIR(fcb_base,fds[index[i]])) {
+          printf("%s\t%dB\t%s\n",NAME(fcb_base,fds[index[i]]),size[i],"d");
+        }
+        else{
+          printf("%s\t%dB\n",NAME(fcb_base,fds[index[i]]),size[i]);
+        }
       }
-      else{
-        printf("%s\t%sB\n",name[index[i]],size[i]);
-      }
+      break;
     }
-    break;
-
     case PWD:
-    char buffer[1024];
-    get_pwd(fs,buffer);
-    print("%s\n",buffer);
+    {
+      char* buffer = new char[1024];
+      get_pwd(fs,buffer);
+      printf("[Current DIR] %s\n",buffer);
+      free(buffer);
+      break;
+    }
     case CD_P:
     curr_dir_fd = get_parent_fd(fs,curr_dir_fd);
+    break;
+    default:
+    break;
   }
+  free(ctime);
+  free(ctime_new);
+  free(mtime);
+  free(size);
+  free(index);
+  free(fds);
 }
 
 __device__ void fs_gsys(FileSystem *fs, int op, char *s)
 {
 	/* Implement rm operation here */
   uchar* fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
+  u32 fd;
   switch(op){
     case RM_RF:
-    u32 fd  = fs_search(fs,s);
-    if(fd>=1024)
     {
-      printf("[ERROR] %s: No such file or directory\n",s);
-      return;
+      fd  = fs_search(fs,s);
+      if(fd>=1024)
+      {
+        printf("[ERROR] %s: No such file or directory\n",s);
+        return;
+      }
+      rm_rf(fs,fd);
+      break;
     }
-    rm_rf(fs,fd);
-    break;
     case CD:
-    u32 fd  = fs_search(fs,s);
-    if(fd>=1024)
     {
-      printf("[ERROR] %s: No such file or directory\n",s);
-      return;
+      fd  = fs_search(fs,s);
+      if(fd>=1024)
+      {
+        printf("[ERROR] %s: No such file or directory\n",s);
+        return;
+      }
+      if(!IS_DIR(fcb_base,fd)){
+        printf("[ERROR] %s: Not a directory\n",s);
+        return;
+      }
+      curr_dir_fd = fd;
+      break;
     }
-    if(!IS_DIR(fcb_base,fd)){
-      printf("[ERROR] %s: Not a directory\n",s);
-      return;
-    }
-    curr_dir_fd = fd;
-    break;
     case MKDIR:
-    mk_dir(fs,s);
+    {
+      mk_dir(fs,s);
+    }
     break;
     default:
     break;

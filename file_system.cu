@@ -89,12 +89,12 @@ __device__ inline unsigned char block_available(FileSystem *fs, u32 offset)
   u32 map_bit = offset%8;
   return (((fs->volume[map_byte]>>map_bit) & 1)==0);
 }
-__device__ inline void set_bitmap(FileSystem *fs, u32 offset, u32 size,unsigned char t) {
+__device__ void set_bitmap(FileSystem *fs, u32 offset, u32 size,unsigned char t) {
   size = (size/fs->STORAGE_BLOCK_SIZE)+(size%fs->STORAGE_BLOCK_SIZE>0);
   for(u32 i=offset;i<offset+size;i++) set_bit(fs,i,t);
 }
 
-__device__ inline void set_bit(FileSystem *fs, u32 offset, unsigned char t) {
+__device__ void set_bit(FileSystem *fs, u32 offset, unsigned char t) {
   u32 map_byte = offset/8;
   u32 map_bit = offset%8;
   if(t){
@@ -216,23 +216,22 @@ __device__ void fs_gsys(FileSystem *fs, int op)
 	/* Implement LS_D and LS_S operation here */
   uchar* fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
   u32 count = 0;
-  char name[1024][20];
-  int ctime[1024];
-  int ctime_new[1024];
-  int mtime[1024];
-  int size[1024];
-  int size_cmp[1024];
-  int index[1024];
+  char* is_dir = new char[1024];
+  int* ctime = new int[1024];
+  int* ctime_new = new int[1024];
+  int* mtime = new int[1024];
+  int* size = new int[1024];
+  int* index = new int[1024];
+  char** name = new char*[1024];
   for(u32 i=0; i<1024; i++) {
     if(NAME(fcb_base,i)[0]=='\0'){
       continue;
     }
-    my_strcpy(name[count],(char*)NAME(fcb_base,i));
+    name[count] = (char*)NAME(fcb_base,i);
     ctime[count] = GET_CTIME(fcb_base,i); //reversed order with size
     ctime_new[count] = GET_CTIME(fcb_base,i);
     mtime[count] = GET_MTIME(fcb_base,i);
     size[count] = GET_SIZE(fcb_base,i);
-    size_cmp[count] = GET_SIZE(fcb_base,i);
     index[count] = count;
     count++;
   }
@@ -241,8 +240,7 @@ __device__ void fs_gsys(FileSystem *fs, int op)
     thrust::sort_by_key(thrust::device, mtime, mtime + count, index, thrust::greater<int>());
     //modified time descending
     printf("===sort by modified time===\n");
-    for(int i=0;i<count;i++)
-      printf("%s\n",name[index[i]]);
+    for(int i=0;i<count;i++) printf("%s\n",name[index[i]]);
     break;
 
     case LS_S:
@@ -258,6 +256,13 @@ __device__ void fs_gsys(FileSystem *fs, int op)
     }
     break;
   }
+  free(is_dir);
+  free(ctime);
+  free(ctime_new);
+  free(mtime);
+  free(size);
+  free(index);
+  free(name);
 }
 
 __device__ void fs_gsys(FileSystem *fs, int op, char *s)
