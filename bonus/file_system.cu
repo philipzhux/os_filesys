@@ -161,13 +161,16 @@ __device__ void fs_gsys(FileSystem *fs, int op)
     {
       char* buffer = new char[1024];
       get_pwd(fs,buffer);
-      printf("[Current DIR] %s\n",buffer);
+      printf("[PWD] Current working directory is: %s\n",buffer);
       free(buffer);
       break;
     }
     case CD_P:
-    curr_dir_fd = get_parent_fd(fs,curr_dir_fd);
-    break;
+    {
+      curr_dir_fd = get_parent_fd(fs,curr_dir_fd);
+      printf("[CD_P] Going to enclosing directory...\n");
+      break;
+    }
     default:
     break;
   }
@@ -209,6 +212,7 @@ __device__ void fs_gsys(FileSystem *fs, int op, char *s)
         return;
       }
       curr_dir_fd = fd;
+      printf("[CD] Jumping to subdir: %s...\n",s);
       break;
     }
     case MKDIR:
