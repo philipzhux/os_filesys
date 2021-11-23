@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <thrust/sort.h>
+#include <thrust/execution_policy.h>
 #define REAL_SOTRAGE_BLOCKS 32768
 #define NAME(fcb_base,fd) (fcb_base+fd*32)
 #define SET_BLOCK_OFFSET(fcb_base,fd,pos) fcb_base[21+32*fd]=((pos&0x00'00'ff'00)>>8); fcb_base[22+32*fd]=(pos&0x00'00'00'ff)
@@ -57,8 +58,8 @@ __device__ void compact_disk(FileSystem *fs)
       for(int i=0;i<size;i++) fs->volume[fs->FILE_BASE_ADDRESS+vacant_front*
       fs->STORAGE_BLOCK_SIZE+i] = fs->volume[fs->FILE_BASE_ADDRESS+chunk_front*
       fs->STORAGE_BLOCK_SIZE+i];
-      set_bitmap(fs,chunk_front,0);
-      set_bitmap(fs,vacant_front,1);
+      set_bitmap(fs,chunk_front,size,0);
+      set_bitmap(fs,vacant_front,size,1);
       SET_BLOCK_OFFSET(fcb_base,fd,vacant_front);
       vacant_front += (size/fs->STORAGE_BLOCK_SIZE)+(size%fs->STORAGE_BLOCK_SIZE>0);
     }
@@ -184,7 +185,7 @@ __device__ u32 fs_write(FileSystem *fs, uchar* input, u32 size, u32 fd)
 {
   u32 fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
   u32 old_size = GET_SIZE(fcb_base,fd);
-	if(size>old_size){
+	if(size!=old_size){
     set_bitmap(fs, GET_BLOCK_OFFSET(fcb_base,fd), old_size,0);
     /** insert fcb back in the right place **/
     u32 bf = find_best_fit(fs,size);
@@ -194,11 +195,8 @@ __device__ u32 fs_write(FileSystem *fs, uchar* input, u32 size, u32 fd)
     }
     set_bitmap(fs, bf, size,1);
     SET_BLOCK_OFFSET(fcb_base,fd,bf.best_fit_block);
+    SET_SIZE(fcb_base,fd,size);
   }
-  else if(size<old_size){
-    set_bitmap(fs, GET_BLOCK_OFFSET(fcb_base,fd)+size, old_size-size, 0);
-  }
-  SET_SIZE(fcb_base,fd,size);
   SET_MTIME(fs,fd,++gtime);
   u32 block_offset = GET_BLOCK_OFFSET(fcb_base,fd);
   for(int i=0;i<size;i++) fs->volume[fs->FILE_BASE_ADDRESS+block_offset*
@@ -219,7 +217,7 @@ __device__ void fs_gsys(FileSystem *fs, int op)
       continue;
     }
     my_strcpy(name[count],GET_NAME(fcb_base,i));
-    ctime[count] = -1*(int)GET_CTIME(fcb_base,i); //reversed order with size
+    ctime[count] = GET_CTIME(fcb_base,i); //reversed order with size
     mtime[count] = GET_MTIME(fcb_base,i);
     size[count] = GET_SIZE(fcb_base,i);
     index[count] = count;
@@ -227,18 +225,18 @@ __device__ void fs_gsys(FileSystem *fs, int op)
   }
 	switch(op){
     case LS_D:
-    thrust::sort_by_key(size, size + count, index);
-    thrust::stable_sort_by_key(mtime, mtime + count, index);
-    printf("%s\t%s\n","Filename","Modified Time");
-    for(int i=count-1;i>=0;i--)
-      printf("%s\t%s\n",name[index[i]],mtime[index[i]]);
+    thrust::sort_by_key(thrust::device, mtime, mtime + count, index, thrust::greater<int>());
+    //modified time descending
+    for(int i=0;i<count;i++)
+      printf("%s\n",name[index[i]]);
     break;
 
     case LS_S:
-    thrust::sort_by_key(ctime, ctime + count, index);
-    thrust::stable_sort_by_key(size, size + count, index);
-    printf("%s\t%s\n","Filename","File Size");
-    for(int i=count-1;i>=0;i--)
+    thrust::sort_by_key(thrust::device, ctime, ctime + count, index);
+    //create time accending
+    thrust::stable_sort_by_key(thrust::device, size, size + count, index, thrust::greater<int>());
+    //size descending
+    for(int i=0;i<count;i++)
       printf("%s\t%sB\n",name[index[i]],size[index[i]]);
     break;
   }

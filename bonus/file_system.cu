@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <thrust/sort.h>
+#include <thrust/execution_policy.h>
 #define REAL_SOTRAGE_BLOCKS 32768
 #define NAME(fcb_base,fd) (fcb_base+fd*32)
 #define SET_BLOCK_OFFSET(fcb_base,fd,pos) fcb_base[21+32*fd]=((pos&0x00'00'ff'00)>>8); fcb_base[22+32*fd]=(pos&0x00'00'00'ff)
@@ -53,8 +54,9 @@ __device__ void init_root(FileSystem *fs)
 
 __device__ void rm_rf(FileSystem *fs, u32 fd){
   u32 fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
-  if(IS_DIR(fcb_base,fd)){
+  if(!IS_DIR(fcb_base,fd)){
     fs_delete_fd(fs,fd);
+    del_from_dir(fs,curr_dir_fd,fd);
     return;
   }
   u32 dir_block_offset = GET_BLOCK_OFFSET(fcb_base,base_dir_fd);
@@ -64,6 +66,9 @@ __device__ void rm_rf(FileSystem *fs, u32 fd){
     rm_rf(fs,fd);
     fds_ptr++;
   }
+  /* finish deleting subdir and files, delete self */
+  fs_delete_fd(fs,fd);
+  del_from_dir(fs,curr_dir_fd,fd);
 }
 
 __device__ u32 mk_dir(FileSystem *fs,char *s);
@@ -76,7 +81,7 @@ __device__ u32 mk_dir(FileSystem *fs,char *s);
   u16* new_fds_ptr = (u16*)(volume+(fs->FILE_BASE_ADDRESS+new_dir_block_offset*fs->STORAGE_BLOCK_SIZE));
   (*new_fds_ptr++) = curr_dir_fd; //add curr_dir as the parent of the new dir
   *new_fds_ptr = 1024; //add end
-  add_to_dir(FileSystem *fs, new_fd); //add new dir to curr_dir
+  add_to_dir(FileSystem *fs, curr_dir_fd, new_fd); //add new dir to curr_dir
   return new_fd;
 }
 
@@ -108,29 +113,31 @@ __device__ void get_pwd(FileSystem *fs, char* buffer)
 }
 
 
-__device__ void add_to_dir(FileSystem *fs, u16 fd)
+__device__ void add_to_dir(FileSystem *fs, u16 dir_fd, u16 file_fd)
 {
   u32 fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
-  u32 dir_block_offset = GET_BLOCK_OFFSET(fcb_base,curr_dir_fd);
+  u32 dir_block_offset = GET_BLOCK_OFFSET(fcb_base,dir_fd);
   u16* fds_ptr = (u16*)(volume+(fs->FILE_BASE_ADDRESS+dir_block_offset*fs->STORAGE_BLOCK_SIZE));
   while((*fds_ptr)!=1024) fds_ptr++;
-  *(fds_ptr++)=fd;
+  *(fds_ptr++)=file_fd;
   *(fds_ptr)=1024;
-  SET_DSIZE(fcb_base,fd,GET_DSIZE(fcb_base,fd)+my_strlen(GET_NAME(fcb_base,fd))+1);
+  SET_DSIZE(fcb_base,dir_fd,GET_DSIZE(fcb_base,dir_fd)+my_strlen(GET_NAME(fcb_base,file_fd))+1);
 }
 
 
-__device__ void del_from_dir(FileSystem *fs, u16 fd)
+__device__ void del_from_dir(FileSystem *fs, u16 dir_fd, u16 file_fd)
 {
   u32 fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
-  u32 dir_block_offset = GET_BLOCK_OFFSET(fcb_base,curr_dir_fd);
+  u32 dir_block_offset = GET_BLOCK_OFFSET(fcb_base,dir_fd);
   u16* fds_ptr = (u16*)(volume+(fs->FILE_BASE_ADDRESS+dir_block_offset*fs->STORAGE_BLOCK_SIZE));
-  while((*fds_ptr)!=fd) fds_ptr++;
+  while((*fds_ptr)!=file_fd) fds_ptr++;
   u16* tar_ptr = fds_ptr;
   while((*fds_ptr)!=1024) fds_ptr++;
+  /** copy last to target **/
   *tar_ptr = *(--fds_ptr);
+  /** delete last **/
   *(fds_ptr) = 1024;
-  SET_DSIZE(fcb_base,fd,GET_DSIZE(fcb_base,fd)-my_strlen(GET_NAME(fcb_base,fd))-1);
+  SET_DSIZE(fcb_base,dir_fd,GET_DSIZE(fcb_base,dir_fd)-my_strlen(GET_NAME(fcb_base,file_fd))-1);
 }
 
 __device__ void compact_disk(FileSystem *fs)
@@ -147,8 +154,8 @@ __device__ void compact_disk(FileSystem *fs)
       for(int i=0;i<size;i++) fs->volume[fs->FILE_BASE_ADDRESS+vacant_front*
       fs->STORAGE_BLOCK_SIZE+i] = fs->volume[fs->FILE_BASE_ADDRESS+chunk_front*
       fs->STORAGE_BLOCK_SIZE+i];
-      set_bitmap(fs,chunk_front,0);
-      set_bitmap(fs,vacant_front,1);
+      set_bitmap(fs,chunk_front,size,0);
+      set_bitmap(fs,vacant_front,size,1);
       SET_BLOCK_OFFSET(fcb_base,fd,vacant_front);
       vacant_front += (size/fs->STORAGE_BLOCK_SIZE)+(size%fs->STORAGE_BLOCK_SIZE>0);
     }
@@ -172,8 +179,8 @@ __device__ inline unsigned char block_available(FileSystem *fs, u32 offset)
   return (((fs->volume[map_byte]>>map_bit) & 1)==0);
 }
 __device__ inline void set_bitmap(FileSystem *fs, u32 offset, u32 size,unsigned char t) {
-  size = (size/fs->STORAGE_BLOCK_SIZE)+(size%fs->STORAGE_BLOCK_SIZE>0);
-  for(u32 i=offset;i<offset+size;i++) set_bit(fs,i,t);
+  u32 block_size = (size/fs->STORAGE_BLOCK_SIZE)+(size%fs->STORAGE_BLOCK_SIZE>0);
+  for(u32 i=offset;i<offset+block_size;i++) set_bit(fs,i,t);
 }
 
 __device__ inline void set_bit(FileSystem *fs, u32 offset, unsigned char t) {
@@ -220,7 +227,12 @@ __device__ u32 fs_open(FileSystem *fs, char *s, int op)
   u32 fd = fs_search(fs,char);
 	switch(op){
     case G_WRITE:
-    if(fd>=1024) fd = fs_insert_fcb(fs,s);
+    if(fd>=1024) {
+      //create file
+      fd = fs_insert_fcb(fs,s);
+      add_to_dir(fs,curr_dir_fd,fd);
+    }
+    
     if(fd>=1024) printf("[Error] Running out of space\n");
     break;
 
@@ -280,7 +292,7 @@ __device__ u32 fs_write(FileSystem *fs, uchar* input, u32 size, u32 fd)
 {
   u32 fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
   u32 old_size = GET_SIZE(fcb_base,fd);
-	if(size>old_size){
+	if(size!=old_size){
     set_bitmap(fs, GET_BLOCK_OFFSET(fcb_base,fd), old_size,0);
     /** insert fcb back in the right place **/
     u32 bf = find_best_fit(fs,size);
@@ -290,11 +302,8 @@ __device__ u32 fs_write(FileSystem *fs, uchar* input, u32 size, u32 fd)
     }
     set_bitmap(fs, bf, size,1);
     SET_BLOCK_OFFSET(fcb_base,fd,bf.best_fit_block);
+    SET_SIZE(fcb_base,fd,size);
   }
-  else if(size<old_size){
-    set_bitmap(fs, GET_BLOCK_OFFSET(fcb_base,fd)+size, old_size-size, 0);
-  }
-  SET_SIZE(fcb_base,fd,size);
   SET_MTIME(fs,fd,++gtime);
   u32 block_offset = GET_BLOCK_OFFSET(fcb_base,fd);
   for(int i=0;i<size;i++) fs->volume[fs->FILE_BASE_ADDRESS+block_offset*
@@ -324,11 +333,16 @@ __device__ void fs_gsys(FileSystem *fs, int op)
     count++;
     fds_ptr++;
   }
+
+
+
+
+  
 	switch(op){
     case LS_D:
-    thrust::sort_by_key(size, size + count, index);
-    thrust::stable_sort_by_key(mtime, mtime + count, index);
-    for(int i=count-1;i>=0;i--){
+    thrust::sort_by_key(thrust::device, mtime, mtime + count, index, thrust::greater<int>());
+    //modified time descending
+    for(int i=0;i<count;i++){
       if(is_dir[index[i]]) {
         printf("%s\t%s\n",name[index[i]],"d");
       }
@@ -340,9 +354,11 @@ __device__ void fs_gsys(FileSystem *fs, int op)
     break;
 
     case LS_S:
-    thrust::sort_by_key(ctime, ctime + count, index);
-    thrust::stable_sort_by_key(size, size + count, index);
-    for(int i=count-1;i>=0;i--){
+    thrust::sort_by_key(thrust::device, ctime, ctime + count, index);
+    //create time accending
+    thrust::stable_sort_by_key(thrust::device, size, size + count, index, thrust::greater<int>());
+    //size descending
+    for(int i=0;i<count;i++) {
       if(is_dir[index[i]]) {
         printf("%s\t%sB\t%s\n",name[index[i]],size[index[i]],"d");
       }
