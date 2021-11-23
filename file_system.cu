@@ -59,6 +59,7 @@ __device__ void compact_disk(FileSystem *fs)
       fs->STORAGE_BLOCK_SIZE+i];
       set_bitmap(fs,chunk_front,0);
       set_bitmap(fs,vacant_front,1);
+      SET_BLOCK_OFFSET(fcb_base,fd,vacant_front);
       vacant_front += (size/fs->STORAGE_BLOCK_SIZE)+(size%fs->STORAGE_BLOCK_SIZE>0);
     }
   }
