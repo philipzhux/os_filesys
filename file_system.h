@@ -18,7 +18,7 @@ typedef uint32_t u32;
 
 
 struct FileSystem {
-	uchar *fcb_ptr;
+	uchar *volume;
 	int SUPERBLOCK_SIZE;
 	int FCB_SIZE;
 	int FCB_ENTRIES;
@@ -44,16 +44,3 @@ __device__ void fs_gsys(FileSystem *fs, int op, char *s);
 __device__ u32 find_best_fit(FileSystem *fs, int size);
 
 #endif
-
-
-
-/**
-FCB Structure:
-0-19 Bytes: File name;
-12 Bytes left == 96 bits
-start posision: 24 bits
-Left 72 bits 9 bytes
-timestamp: 32 bits 4 bytes
-Left 40 bits 10 bytes
-size: 16 bites 2 bytes
-8 bytes

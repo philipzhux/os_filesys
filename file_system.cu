@@ -30,7 +30,6 @@ __device__ void fs_init(FileSystem *fs, uchar *volume, int SUPERBLOCK_SIZE,
 {
   // init variables
   fs->volume = volume;
-
   // init constants
   fs->SUPERBLOCK_SIZE = SUPERBLOCK_SIZE;
   fs->FCB_SIZE = FCB_SIZE;
