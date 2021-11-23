@@ -196,7 +196,8 @@ __device__ void fs_gsys(FileSystem *fs, int op, char *s)
         printf("[ERROR] %s: No such file or directory\n",s);
         return;
       }
-      rm_rf(fs,fd);
+      rm_rf(fs,fd,curr_dir_fd);
+      printf("[RM_RF] %s already recursively deleted...\n",s);
       break;
     }
     case CD:

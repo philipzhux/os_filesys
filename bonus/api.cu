@@ -61,24 +61,24 @@ __device__ u32 find_best_fit(FileSystem *fs, int size)
 }
 
 
-__device__ void rm_rf(FileSystem *fs, u32 fd)
+__device__ void rm_rf(FileSystem *fs, u32 fd, u32 dir)
 {
     uchar* fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
     if(!IS_DIR(fcb_base,fd)){
+      del_from_dir(fs,dir,fd);
       fs_delete_fd(fs,fd);
-      del_from_dir(fs,curr_dir_fd,fd);
       return;
     }
     u32 dir_block_offset = GET_BLOCK_OFFSET(fcb_base,fd);
     u16* fds_ptr = (u16*)(fs->volume+(fs->FILE_BASE_ADDRESS+dir_block_offset*fs->STORAGE_BLOCK_SIZE));
     fds_ptr++; //avoid deleting the parent dir
     while((*fds_ptr)!=1024) {
-      rm_rf(fs,(*fds_ptr));
+      rm_rf(fs,(*fds_ptr),fd);
       fds_ptr++;
     }
     /* finish deleting subdir and files, delete self */
+    del_from_dir(fs,dir,fd);
     fs_delete_fd(fs,fd);
-    del_from_dir(fs,curr_dir_fd,fd);
 }
 
 

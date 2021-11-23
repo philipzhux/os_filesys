@@ -73,7 +73,7 @@ __device__ void fs_gsys(FileSystem *fs, int op, char *s);
 __device__ void compact_disk(FileSystem *fs);
 __device__ u32 offset_to_fd(FileSystem *fs, u32 offset);
 __device__ u32 find_best_fit(FileSystem *fs, int size);
-__device__ void rm_rf(FileSystem *fs, u32 fd);
+__device__ void rm_rf(FileSystem *fs, u32 fd, u32 dir);
 __device__ void fs_delete_fd(FileSystem *fs,u32 fd);
 __device__ u32 fs_insert_fcb(FileSystem *fs,char *s);
 __device__ u32 fs_search(FileSystem *fs,char *s);

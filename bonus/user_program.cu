@@ -49,7 +49,6 @@ __device__ void user_program(FileSystem *fs, uchar *input, uchar *output) {
 	fs_gsys(fs, LS_S);
 	fs_gsys(fs, CD_P);
 	fs_gsys(fs, LS_S);
-	printf("Finished...\n");
 
 	/*
 	/////////////// Test Case 2  ///////////////
