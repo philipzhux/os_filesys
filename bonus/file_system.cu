@@ -44,6 +44,12 @@ __device__ void fs_init(FileSystem *fs, uchar *volume, int SUPERBLOCK_SIZE,
   fs->MAX_FILE_NUM = MAX_FILE_NUM;
   fs->MAX_FILE_SIZE = MAX_FILE_SIZE;
   fs->FILE_BASE_ADDRESS = FILE_BASE_ADDRESS;
+  set_bitmap(fs,0,MAX_FILE_SIZE,0); //set all available
+  uchar* fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
+  for(u32 i=0; i<1024; i++) {
+    SET_NAME(fcb_base,fd,"");
+    SET_SIZE(fcb_base,fd,0);
+  } //initialize all fcbs
 
 }
 
@@ -53,7 +59,7 @@ __device__ void init_root(FileSystem *fs)
 }
 
 __device__ void rm_rf(FileSystem *fs, u32 fd){
-  u32 fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
+  uchar* fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
   if(!IS_DIR(fcb_base,fd)){
     fs_delete_fd(fs,fd);
     del_from_dir(fs,curr_dir_fd,fd);
@@ -73,7 +79,7 @@ __device__ void rm_rf(FileSystem *fs, u32 fd){
 
 __device__ u32 mk_dir(FileSystem *fs,char *s);
 {
-  u32 fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
+  uchar* fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
   u32 new_fd = fs_insert_fcb(FileSystem *fs,char *s);
   SET_SIZE(fcb_base,fd，1024);
   IS_DIR(fcb_base,fd) = 1;
@@ -87,7 +93,7 @@ __device__ u32 mk_dir(FileSystem *fs,char *s);
 
 __device__ u32 get_parent_fd(FileSystem *fs, u32 base_dir_fd)
 {
-  u32 fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
+  uchar* fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
   u32 dir_block_offset = GET_BLOCK_OFFSET(fcb_base,base_dir_fd);
   u16* fds_ptr = (u16*)(volume+(fs->FILE_BASE_ADDRESS+new_dir_block_offset*fs->STORAGE_BLOCK_SIZE));
   u32 parent = *fds_ptr;
@@ -97,7 +103,7 @@ __device__ u32 get_parent_fd(FileSystem *fs, u32 base_dir_fd)
 
 __device__ void get_pwd(FileSystem *fs, char* buffer)
 {
-  u32 fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
+  uchar* fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
   char names[5][20];
   u32 dir_fd = curr_dir_fd;
   int count = 0;
@@ -115,7 +121,7 @@ __device__ void get_pwd(FileSystem *fs, char* buffer)
 
 __device__ void add_to_dir(FileSystem *fs, u16 dir_fd, u16 file_fd)
 {
-  u32 fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
+  uchar* fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
   u32 dir_block_offset = GET_BLOCK_OFFSET(fcb_base,dir_fd);
   u16* fds_ptr = (u16*)(volume+(fs->FILE_BASE_ADDRESS+dir_block_offset*fs->STORAGE_BLOCK_SIZE));
   while((*fds_ptr)!=1024) fds_ptr++;
@@ -127,7 +133,7 @@ __device__ void add_to_dir(FileSystem *fs, u16 dir_fd, u16 file_fd)
 
 __device__ void del_from_dir(FileSystem *fs, u16 dir_fd, u16 file_fd)
 {
-  u32 fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
+  uchar* fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
   u32 dir_block_offset = GET_BLOCK_OFFSET(fcb_base,dir_fd);
   u16* fds_ptr = (u16*)(volume+(fs->FILE_BASE_ADDRESS+dir_block_offset*fs->STORAGE_BLOCK_SIZE));
   while((*fds_ptr)!=file_fd) fds_ptr++;
@@ -143,7 +149,7 @@ __device__ void del_from_dir(FileSystem *fs, u16 dir_fd, u16 file_fd)
 __device__ void compact_disk(FileSystem *fs)
 {
   u32 fd;
-  u32 fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
+  uchar* fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
   u32 vacant_front,chunk_front = 0;
   while(chunk_front<REAL_SOTRAGE_BLOCKS) {
     while(!block_available(fs,vacant_front) && vacant_front<REAL_SOTRAGE_BLOCKS) vacant_front++;
@@ -163,7 +169,7 @@ __device__ void compact_disk(FileSystem *fs)
 }
 
 __device__ u32 offset_to_fd(FileSystem *fs, u32 offset) {
-  u32 fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
+  uchar* fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
   u32 fd;
   for(fd=0;fd<1024;fd++){
     if(GET_BLOCK_OFFSET(fcb_base,fd)==offset) break;
@@ -245,7 +251,7 @@ __device__ u32 fs_open(FileSystem *fs, char *s, int op)
 
 __device__ inline u32 fs_delete_fd(FileSystem *fs,u32 fd)
 {
-  u32 fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
+  uchar* fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
   set_bitmap(fs, GET_BLOCK_OFFSET(fcb_base,fd), GET_SIZE(fcb_base,fd),0);
   SET_NAME(fcb_base,fd,"");
   SET_SIZE(fcb_base,fd,0);
@@ -253,7 +259,7 @@ __device__ inline u32 fs_delete_fd(FileSystem *fs,u32 fd)
 
 __device__ inline u32 fs_insert_fcb(FileSystem *fs,char *s)
 {
-  u32 fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
+  uchar* fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
   for(u32 i=0; i<1024; i++) {
     if(my_strcmp(GET_NAME(fcb_base,i),"")){
       u32 ts = (u32)time(NULL);
@@ -269,7 +275,7 @@ __device__ inline u32 fs_insert_fcb(FileSystem *fs,char *s)
 }
 __device__ inline u32 fs_search(FileSystem *fs,char *s)
 {
-  u32 fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
+  uchar* fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
   u32 dir_block_offset = GET_BLOCK_OFFSET(fcb_base,curr_dir_fd);
   u16* fds_ptr = (u16*)(volume+(fs->FILE_BASE_ADDRESS+dir_block_offset*fs->STORAGE_BLOCK_SIZE));
   fds_ptr++; //avoid intervening of the parent node
@@ -281,7 +287,7 @@ __device__ inline u32 fs_search(FileSystem *fs,char *s)
 
 __device__ void fs_read(FileSystem *fs, uchar *output, u32 size, u32 fd)
 {
-  u32 fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
+  uchar* fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
 	u32 block_offset = GET_BLOCK_OFFSET(fcb_base,fd);
   if(size>GET_SIZE(fcb_base,fd)) size = GET_SIZE(fcb_base,fd);
   for(int i=0;i<size;i++) output[i] =
@@ -290,7 +296,7 @@ __device__ void fs_read(FileSystem *fs, uchar *output, u32 size, u32 fd)
 
 __device__ u32 fs_write(FileSystem *fs, uchar* input, u32 size, u32 fd)
 {
-  u32 fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
+  uchar* fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
   u32 old_size = GET_SIZE(fcb_base,fd);
 	if(size!=old_size){
     set_bitmap(fs, GET_BLOCK_OFFSET(fcb_base,fd), old_size,0);
@@ -312,7 +318,7 @@ __device__ u32 fs_write(FileSystem *fs, uchar* input, u32 size, u32 fd)
 __device__ void fs_gsys(FileSystem *fs, int op)
 {
 	/* Implement LS_D and LS_S operation here */
-  u32 fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
+  uchar* fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
   u32 count = 0;
   char name[1024][20];
   char is_dir[1024];
@@ -380,7 +386,7 @@ __device__ void fs_gsys(FileSystem *fs, int op)
 __device__ void fs_gsys(FileSystem *fs, int op, char *s)
 {
 	/* Implement rm operation here */
-  u32 fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
+  uchar* fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
   switch(op){
     case RM_RF:
     u32 fd  = fs_search(fs,s);

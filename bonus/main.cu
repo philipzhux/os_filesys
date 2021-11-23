@@ -36,11 +36,13 @@ __global__ void mykernel(uchar *input, uchar *output) {
 
   // Initilize the file system	
   FileSystem fs;
+  printf("enter kernel \n");
   fs_init(&fs, volume, SUPERBLOCK_SIZE, FCB_SIZE, FCB_ENTRIES, 
 			VOLUME_SIZE,STORAGE_BLOCK_SIZE, MAX_FILENAME_SIZE, 
 			MAX_FILE_NUM, MAX_FILE_SIZE, FILE_BASE_ADDRESS);
 
   // user program the access pattern for testing file operations
+  printf("init ok \n");
   user_program(&fs, input, output);
 }
 

@@ -42,6 +42,7 @@ __global__ void mykernel(uchar *input, uchar *output) {
 			MAX_FILE_NUM, MAX_FILE_SIZE, FILE_BASE_ADDRESS);
 
   // user program the access pattern for testing file operations
+  printf("init ok \n");
   user_program(&fs, input, output);
 }
 
