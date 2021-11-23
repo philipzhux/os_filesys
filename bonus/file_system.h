@@ -22,7 +22,7 @@ typedef uint16_t u16;
 
 
 struct FileSystem {
-	uchar *fcb_ptr;
+	uchar *volume;
 	int SUPERBLOCK_SIZE;
 	int FCB_SIZE;
 	int FCB_ENTRIES;
