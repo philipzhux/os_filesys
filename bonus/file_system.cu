@@ -325,7 +325,7 @@ __device__ void fs_gsys(FileSystem *fs, int op)
   fds_ptr++; //avoid intervening of the parent node
   while((*fds_ptr)!=1024){
     my_strcpy(name[count],GET_NAME(fcb_base,(*fds_ptr)));
-    ctime[count] = -1*(int)GET_CTIME(fcb_base,(*fds_ptr)); //reversed order with size
+    ctime[count] = GET_CTIME(fcb_base,(*fds_ptr)); //reversed order with size
     mtime[count] = GET_MTIME(fcb_base,(*fds_ptr));
     size[count] = GET_SIZE(fcb_base,(*fds_ptr));
     if(IS_DIR(fcb_base,(*fds_ptr))) size[count] = GET_DSIZE(fcb_base,(*fds_ptr));
