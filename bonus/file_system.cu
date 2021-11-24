@@ -232,7 +232,7 @@ __device__ void fs_gsys(FileSystem *fs, int op, char *s)
     {
       u32 fd  = fs_search(fs,s);
       if(fd<1024) {
-        printf("[MKDIR] %s: File/Dir already exists in current dir\n",s);
+        printf("[ERROR]] MKDIR: %s already exists in current dir\n",s);
         assert(0);
         return;
       }
