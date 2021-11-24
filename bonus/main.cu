@@ -1,27 +1,11 @@
 ﻿#include "file_system.h"
 
-#define DATAFILE "./data.bin"
-#define OUTFILE "./snapshot.bin"
-
-#define SUPERBLOCK_SIZE 4096 //32K/8 bits = 4 K
-#define FCB_SIZE 32 //32 bytes per FCB
-#define FCB_ENTRIES 1024
-#define VOLUME_SIZE 1085440 //4096+32768+1048576
-#define STORAGE_BLOCK_SIZE 32
-
-#define MAX_FILENAME_SIZE 20
-#define MAX_FILE_NUM 1024
-#define MAX_FILE_SIZE 1048576
-
-#define FILE_BASE_ADDRESS 36864 //4096+32768
-
-
 // data input and output
-__device__ __managed__ uchar input[MAX_FILE_SIZE];
-__device__ __managed__ uchar output[MAX_FILE_SIZE];
+__device__ __managed__ uchar input[MAX_FILE_SIZE_C];
+__device__ __managed__ uchar output[MAX_FILE_SIZE_C];
 
 // volume (disk storage)
-__device__ __managed__ uchar volume[VOLUME_SIZE];
+__device__ __managed__ uchar volume[VOLUME_SIZE_C];
 
 
 __device__ void user_program(FileSystem *fs, uchar *input, uchar *output);
@@ -31,12 +15,20 @@ __global__ void mykernel(uchar *input, uchar *output) {
   // Initilize the file system	
   FileSystem fs;
   printf("enter kernel \n");
-  fs_init(&fs, volume, SUPERBLOCK_SIZE, FCB_SIZE, FCB_ENTRIES, 
-			VOLUME_SIZE,STORAGE_BLOCK_SIZE, MAX_FILENAME_SIZE, 
-			MAX_FILE_NUM, MAX_FILE_SIZE, FILE_BASE_ADDRESS);
+  fs_init(&fs, volume, SUPERBLOCK_SIZE_C, FCB_SIZE_C, FCB_ENTRIES_C, 
+			VOLUME_SIZE_C,STORAGE_BLOCK_SIZE_C, MAX_FILENAME_SIZE_C, 
+			MAX_FILE_NUM_C, MAX_FILE_SIZE_C, FILE_BASE_ADDRESS_C);
 
   // user program the access pattern for testing file operations
-  printf("init ok \n");
+  if(MAX_PER_DIR>MAX_FILE_SIZE_C/MAX_FILE_NUM_C)
+  {
+	printf("[ERROR] Max file# per dir can't exceed %d, check [config.h]\n",MAX_FILE_SIZE_C/MAX_FILE_NUM_C);
+	assert(0);
+  }
+  if(MAX_PER_DIR>MAX_FILE_SIZE_C/MAX_FILE_NUM_C/sizeof(u16))
+  printf(
+	"[WARNING] Max file# per dir exceeding %d may lead to insufficient space for storage.\n",
+	MAX_FILE_SIZE_C/MAX_FILE_NUM_C/sizeof(u16));
   user_program(&fs, input, output);
 }
 
@@ -80,8 +72,8 @@ __host__ int load_binaryFile(char *fileName, void *buffer, int bufferSize)
 
 int main() {
   cudaError_t cudaStatus;
-  load_binaryFile(DATAFILE, input, MAX_FILE_SIZE);
-
+  load_binaryFile(DATAFILE, input, MAX_FILE_SIZE_C);
+  cudaDeviceSetLimit(cudaLimitStackSize, 32768);
   // Launch to GPU kernel with single thread
   mykernel<<<1, 1>>>(input, output);
 
@@ -95,7 +87,7 @@ int main() {
   cudaDeviceSynchronize();
   cudaDeviceReset();
 
-  write_binaryFile(OUTFILE, output, MAX_FILE_SIZE);
+  write_binaryFile(OUTFILE, output, MAX_FILE_SIZE_C);
 
 
   return 0;

@@ -1,6 +1,6 @@
 ﻿#ifndef VIRTUAL_MEMORY_H
 #define VIRTUAL_MEMORY_H
-
+#include "config.h"
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <inttypes.h>
@@ -15,17 +15,6 @@ typedef unsigned char uchar;
 typedef uint32_t u32;
 typedef uint16_t u16;
 
-#define G_WRITE 1
-#define G_READ 0
-#define LS_D 0
-#define LS_S 1
-#define RM 2
-#define CD 3
-#define MKDIR 4
-#define PWD 5
-#define CD_P 6
-#define RM_RF 7
-#define REAL_SOTRAGE_BLOCKS 32768
 #define NAME(fcb_base,fd) (fcb_base+fd*32)
 #define SET_BLOCK_OFFSET(fcb_base,fd,pos) fcb_base[21+32*fd]=((pos&0x0000ff00)>>8); fcb_base[22+32*fd]=(pos&0x000000ff)
 #define GET_BLOCK_OFFSET(fcb_base,fd) ((fcb_base[21+32*fd]<<8)|fcb_base[22+32*fd])
@@ -42,8 +31,6 @@ fcb_base[26+32*fd]=(time&0x000000ff)
 #define SET_DSIZE(fcb_base,fd,size) fcb_base[29+32*fd]=((size&0x0000ff00)>>8);fcb_base[30+32*fd]=(size&0x000000ff)
 #define GET_DSIZE(fcb_base,fd) ((fcb_base[29+32*fd]<<8)|fcb_base[30+32*fd])
 #define IS_DIR(fcb_base,fd) fcb_base[31+32*fd]
-
-
 
 struct FileSystem {
 	uchar *volume;
@@ -91,6 +78,7 @@ __device__ u32 mk_dir(FileSystem *fs,char *s);
 __device__ u32 get_parent_fd(FileSystem *fs, u32 base_dir_fd);
 __device__ void get_pwd(FileSystem *fs, char* buffer);
 __device__ void add_to_dir(FileSystem *fs, u16 dir_fd, u16 file_fd);
+__device__ u16 dir_count(FileSystem *fs, u16 dir_fd);
 
 /** utils.cu **/
 __device__ int my_strcmp (const char * s1, const char * s2);

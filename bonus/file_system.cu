@@ -22,7 +22,7 @@ __device__ void fs_init(FileSystem *fs, uchar *volume, int SUPERBLOCK_SIZE,
   set_bitmap(fs,0,MAX_FILE_SIZE,0);
   // init FCBs
   uchar* fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
-  for(u32 i=0; i<1024; i++) {
+  for(u32 i=0; i<FD_END; i++) {
     NAME(fcb_base,i)[0] = '\0';
     SET_SIZE(fcb_base,i,0);
     SET_DSIZE(fcb_base,i,0);
@@ -38,27 +38,35 @@ __device__ u32 fs_open(FileSystem *fs, char *s, int op)
 {
   u32 fd = fs_search(fs,s);
   uchar* fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
-  if(IS_DIR(fcb_base,fd))
+  if(fd<FD_END && IS_DIR(fcb_base,fd))
   {
     printf("[ERROR] Can't open directory %s.\n",s);
+    printf("The FD is %d\n",fd);
     assert(0);
-    return 1024;
+    return FD_END;
   }
 	switch(op){
     case G_WRITE:
-    if(fd>=1024) {
+    if(fd>=FD_END) {
       //create file
+      if(dir_count(fs,curr_dir_fd)>MAX_PER_DIR-1){
+        printf("Files and subdirs at each directory cannot exceed %d.\n",MAX_PER_DIR);
+        printf("The files in current path FYI:\n");
+        fs_gsys(fs, LS_S);
+        printf("Again, files and subdirs at each directory cannot exceed %d.\n",MAX_PER_DIR);
+        assert(0);
+      }
       fd = fs_insert_fcb(fs,s);
       add_to_dir(fs,curr_dir_fd,fd);
     }
     
-    if(fd>=1024) printf("[ERROR] Running out of space\n");
-    assert(fd<1024);
+    if(fd>=FD_END) printf("[ERROR] Running out of space\n");
+    assert(fd<FD_END);
     break;
 
     case G_READ:
-    if(fd>=1024) printf("[ERROR] Running out of space\n");
-    assert(fd<1024);
+    if(fd>=FD_END) printf("[ERROR] Running out of space\n");
+    assert(fd<FD_END);
     break;
   }
   return fd;
@@ -104,19 +112,17 @@ __device__ void fs_gsys(FileSystem *fs, int op)
 	/* Implement LS_D and LS_S operation here */
   uchar* fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
   u32 count = 0;
-  // char* is_dir = new char[50];
-  u16* ctime = new u16[50];
-  u16* ctime_new = new u16[50];
-  u16* mtime = new u16[50];
-  u16* size = new u16[50];
-  // int* size = new int[50];
-  u16* index = new u16[50];
-  u16* fds = new u16[50];
+  u16* ctime = new u16[MAX_PER_DIR];
+  u16* ctime_new = new u16[MAX_PER_DIR];
+  u16* mtime = new u16[MAX_PER_DIR];
+  u16* size = new u16[MAX_PER_DIR];
+  u16* index = new u16[MAX_PER_DIR];
+  u16* fds = new u16[MAX_PER_DIR];
   // char** name = new char*[50];
   u32 dir_block_offset = GET_BLOCK_OFFSET(fcb_base,curr_dir_fd);
   u16* fds_ptr = (u16*)(fs->volume+(fs->FILE_BASE_ADDRESS+dir_block_offset*fs->STORAGE_BLOCK_SIZE));
   fds_ptr++; //avoid intervening of the parent node
-  while((*fds_ptr)!=1024){
+  while((*fds_ptr)!=DIR_END){
     u32 rfd = *fds_ptr;
     // name[count]=(char*)NAME(fcb_base,rfd);
     ctime[count] = GET_CTIME(fcb_base,rfd);
@@ -168,7 +174,7 @@ __device__ void fs_gsys(FileSystem *fs, int op)
     }
     case PWD:
     {
-      char* buffer = new char[1024];
+      char* buffer = new char[4098];
       get_pwd(fs,buffer);
       printf("%s\n",buffer);
       free(buffer);
@@ -200,7 +206,7 @@ __device__ void fs_gsys(FileSystem *fs, int op, char *s)
     case RM_RF:
     {
       fd  = fs_search(fs,s);
-      if(fd>=1024)
+      if(fd>=FD_END)
       {
         printf("[ERROR] %s: No such file or directory\n",s);
         assert(0);
@@ -213,7 +219,7 @@ __device__ void fs_gsys(FileSystem *fs, int op, char *s)
     case CD:
     {
       fd  = fs_search(fs,s);
-      if(fd>=1024)
+      if(fd>=FD_END)
       {
         printf("[ERROR] %s: No such file or directory\n",s);
         assert(0);
@@ -231,10 +237,17 @@ __device__ void fs_gsys(FileSystem *fs, int op, char *s)
     case MKDIR:
     {
       u32 fd  = fs_search(fs,s);
-      if(fd<1024) {
+      if(fd<FD_END) {
         printf("[ERROR] MKDIR: %s already exists in current dir\n",s);
         assert(0);
         return;
+      }
+      if(dir_count(fs,curr_dir_fd)>=MAX_PER_DIR){
+        printf("Files and subdirs at each directory cannot exceed %d.\n",MAX_PER_DIR);
+        printf("The files in current path FYI:\n");
+        fs_gsys(fs, LS_S);
+        printf("Again, files and subdirs at each directory cannot exceed %d.\n",MAX_PER_DIR);
+        assert(0);
       }
       mk_dir(fs,s);
     }

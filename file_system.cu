@@ -252,7 +252,7 @@ __device__ void fs_gsys(FileSystem *fs, int op)
     //size descending
     for(int i=0;i<count;i++){
       //printf("index[%d] = %d\n",i,index[i]);
-      printf("%s\t%dB\n",name[index[i]],size[i]);
+      printf("%s\t%d\n",name[index[i]],size[i]);
     }
     break;
   }
