@@ -1,7 +1,7 @@
-# CSC 3150 Project 4 Report
+# File System Simulation on CUDA
 **Zhu Chuyan** 119010486 **at** *The Chinese University of Hong Kong, Shenzhen*
 ## Table of contents
-- [CSC 3150 Project 4 Report](#csc-3150-project-4-report)
+- [File System Simulation on CUDA](#file-system-simulation-on-cuda)
   - [Table of contents](#table-of-contents)
   - [1. How to run the program](#1-how-to-run-the-program)
     - [1.1 Running environments](#11-running-environments)
@@ -22,11 +22,6 @@
       - [Directory Implementation](#directory-implementation)
       - [Basic operations support](#basic-operations-support-1)
   - [3. The results](#3-the-results)
-    - [Basic Part](#basic-part)
-      - [Test 1](#test-1)
-      - [Test 2](#test-2)
-      - [Test 3](#test-3)
-    - [Bonus Part](#bonus-part)
   - [4. What I learn from the project](#4-what-i-learn-from-the-project)
 
 
@@ -64,7 +59,6 @@ Then you can simply run by:
 ### 2.1 Single Layer Filesystem Simulation
 
 #### Implementation Flowchart
- <figure align="center">
 
   ```mermaid
   graph LR;
@@ -98,9 +92,7 @@ Then you can simply run by:
   RW--"Update"-->MT;
   RW--"Read/Write using offset"-->BLOCKS;
   ```
-
-  <figcaption>Figure 1: Main Program Implementation Flow Chart</figcaption>
-  </figure>
+  ![flowchart](https://i.imgur.com/ZixiHNX.png)
 
 ***
 #### Bitmap
@@ -200,16 +192,6 @@ To be easier (lazier), I did not allow the size (real one, not the dsize) of the
 Also, with such implmentation, the layer of directory is not limited.
 
 ## 3. The results
-### Basic Part
-#### Test 1
-![ss1](https://i.imgur.com/Qnkam2y.png)
-#### Test 2
-![ss2](https://i.imgur.com/Pj7YBpl.png)
-#### Test 3
-![ss3](https://i.imgur.com/iQ8zygq.png)
-
-### Bonus Part
-![bonus](https://i.imgur.com/vVeZcpq.png)![bonus2](https://i.imgur.com/bkVWiPI.png)
-
+*>>> This part is only for asssignment submission.*
 ## 4. What I learn from the project
-I learn the principles and implementations of a contiguous storage allocation file system and learn how to implement the directories, arrange the storage, maintain the metadatas, as well as how to reduce the external fragmentation using allocating policies and compaction.
+*>>> This part is only for asssignment submission.*
