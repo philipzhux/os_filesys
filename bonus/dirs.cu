@@ -23,6 +23,7 @@ __device__ void init_root(FileSystem *fs)
 __device__ void del_from_dir(FileSystem *fs, u16 dir_fd, u16 file_fd)
 {
   uchar* fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
+  SET_MTIME(fcb_base,dir_fd,++gtime);
   u32 dir_block_offset = GET_BLOCK_OFFSET(fcb_base,dir_fd);
   u16* fds_ptr = (u16*)(fs->volume+(fs->FILE_BASE_ADDRESS+dir_block_offset*fs->STORAGE_BLOCK_SIZE));
   while((*fds_ptr)!=file_fd) fds_ptr++;
@@ -90,6 +91,7 @@ __device__ void get_pwd(FileSystem *fs, char* buffer)
 __device__ void add_to_dir(FileSystem *fs, u16 dir_fd, u16 file_fd)
 {
   uchar* fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
+  SET_MTIME(fcb_base,dir_fd,++gtime);
   u32 dir_block_offset = GET_BLOCK_OFFSET(fcb_base,dir_fd);
   u16* fds_ptr = (u16*)(fs->volume+(fs->FILE_BASE_ADDRESS+dir_block_offset*fs->STORAGE_BLOCK_SIZE));
   while((*fds_ptr)!=1024) fds_ptr++;
