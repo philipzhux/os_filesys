@@ -14,7 +14,7 @@ __global__ void mykernel(uchar *input, uchar *output) {
 
   // Initilize the file system	
   FileSystem fs;
-  printf("enter kernel \n");
+  //printf("enter kernel \n");
   fs_init(&fs, volume, SUPERBLOCK_SIZE_C, FCB_SIZE_C, FCB_ENTRIES_C, 
 			VOLUME_SIZE_C,STORAGE_BLOCK_SIZE_C, MAX_FILENAME_SIZE_C, 
 			MAX_FILE_NUM_C, MAX_FILE_SIZE_C, FILE_BASE_ADDRESS_C);

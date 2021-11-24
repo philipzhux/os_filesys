@@ -1,7 +1,7 @@
 #define DATAFILE "./data.bin"
 #define OUTFILE "./snapshot.bin"
 
-#define MAX_PER_DIR 2048
+#define MAX_PER_DIR 256
 #define REAL_SOTRAGE_BLOCKS 32768
 
 #define SUPERBLOCK_SIZE_C 4096 //32K/8 bits = 4 K
