@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <thrust/sort.h>
 #include <thrust/execution_policy.h>
+#include <assert.h>
 
 typedef unsigned char uchar;
 typedef uint32_t u32;

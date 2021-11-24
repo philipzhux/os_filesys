@@ -1,6 +1,5 @@
 ﻿#include "file_system.h"
 
-
 __device__ void fs_init(FileSystem *fs, uchar *volume, int SUPERBLOCK_SIZE,
 							int FCB_SIZE, int FCB_ENTRIES, int VOLUME_SIZE,
 							int STORAGE_BLOCK_SIZE, int MAX_FILENAME_SIZE, 
@@ -38,6 +37,13 @@ __device__ void fs_init(FileSystem *fs, uchar *volume, int SUPERBLOCK_SIZE,
 __device__ u32 fs_open(FileSystem *fs, char *s, int op)
 {
   u32 fd = fs_search(fs,s);
+  uchar* fcb_base = fs->volume + fs->SUPERBLOCK_SIZE;
+  if(IS_DIR(fcb_base,fd))
+  {
+    printf("[ERROR] Can't open directory %s.\n",s);
+    assert(0);
+    return 1024;
+  }
 	switch(op){
     case G_WRITE:
     if(fd>=1024) {
@@ -46,11 +52,13 @@ __device__ u32 fs_open(FileSystem *fs, char *s, int op)
       add_to_dir(fs,curr_dir_fd,fd);
     }
     
-    if(fd>=1024) printf("[Error] Running out of space\n");
+    if(fd>=1024) printf("[ERROR] Running out of space\n");
+    assert(fd<1024);
     break;
 
     case G_READ:
-    if(fd>=1024) printf("[Error] Running out of space\n");
+    if(fd>=1024) printf("[ERROR] Running out of space\n");
+    assert(fd<1024);
     break;
   }
   return fd;
@@ -79,6 +87,7 @@ __device__ u32 fs_write(FileSystem *fs, uchar* input, u32 size, u32 fd)
       compact_disk(fs);
       bf = find_best_fit(fs,size);
       if(bf>=REAL_SOTRAGE_BLOCKS) printf("[ERROR] Running out of space\n");
+      assert(bf<REAL_SOTRAGE_BLOCKS);
     }
     set_bitmap(fs, bf, size,1);
     SET_BLOCK_OFFSET(fcb_base,fd,bf);
@@ -149,10 +158,10 @@ __device__ void fs_gsys(FileSystem *fs, int op)
       //size descending
       for(int i=0;i<count;i++) {
         if(IS_DIR(fcb_base,fds[index[i]])) {
-          printf("%s\t%dB\t%s\n",NAME(fcb_base,fds[index[i]]),size[i],"d");
+          printf("%s\t%d\t%s\n",NAME(fcb_base,fds[index[i]]),size[i],"d");
         }
         else{
-          printf("%s\t%dB\n",NAME(fcb_base,fds[index[i]]),size[i]);
+          printf("%s\t%d\n",NAME(fcb_base,fds[index[i]]),size[i]);
         }
       }
       break;
@@ -161,14 +170,14 @@ __device__ void fs_gsys(FileSystem *fs, int op)
     {
       char* buffer = new char[1024];
       get_pwd(fs,buffer);
-      printf("[PWD] Current working directory is: %s\n",buffer);
+      printf("%s\n",buffer);
       free(buffer);
       break;
     }
     case CD_P:
     {
       curr_dir_fd = get_parent_fd(fs,curr_dir_fd);
-      printf("[CD_P] Going to enclosing directory...\n");
+      //printf("[CD_P] Going to enclosing directory...\n");
       break;
     }
     default:
@@ -194,10 +203,11 @@ __device__ void fs_gsys(FileSystem *fs, int op, char *s)
       if(fd>=1024)
       {
         printf("[ERROR] %s: No such file or directory\n",s);
+        assert(0);
         return;
       }
       rm_rf(fs,fd,curr_dir_fd);
-      printf("[RM_RF] %s already recursively deleted...\n",s);
+      //printf("[RM_RF] %s already recursively deleted...\n",s);
       break;
     }
     case CD:
@@ -206,18 +216,26 @@ __device__ void fs_gsys(FileSystem *fs, int op, char *s)
       if(fd>=1024)
       {
         printf("[ERROR] %s: No such file or directory\n",s);
+        assert(0);
         return;
       }
       if(!IS_DIR(fcb_base,fd)){
         printf("[ERROR] %s: Not a directory\n",s);
+        assert(0);
         return;
       }
       curr_dir_fd = fd;
-      printf("[CD] Jumping to subdir: %s...\n",s);
+      //printf("[CD] Jumping to subdir: %s...\n",s);
       break;
     }
     case MKDIR:
     {
+      u32 fd  = fs_search(fs,s);
+      if(fd<1024) {
+        printf("[MKDIR] %s: File/Dir already exists in current dir\n",s);
+        assert(0);
+        return;
+      }
       mk_dir(fs,s);
     }
     break;
