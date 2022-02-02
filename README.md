@@ -1,5 +1,6 @@
 # File System Simulation on CUDA
-**Zhu Chuyan** 119010486 **at** *The Chinese University of Hong Kong, Shenzhen*
+
+
 ## Table of contents
 - [File System Simulation on CUDA](#file-system-simulation-on-cuda)
   - [Table of contents](#table-of-contents)
